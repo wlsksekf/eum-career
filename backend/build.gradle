@@ -10,7 +10,7 @@ description = "Career matching platform 'hirepicker'"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -89,6 +89,11 @@ dependencies {
     // Excel file processing
     implementation 'org.apache.poi:poi:5.2.5'
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
+
+    // Local Embedded Redis (개발/로컬 테스트용)
+    implementation ('it.ozimov:embedded-redis:0.7.3') {
+        exclude group: 'org.slf4j', module: 'slf4j-simple'
+    }
 }
 
 tasks.named('test') {

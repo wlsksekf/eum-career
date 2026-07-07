@@ -198,11 +198,23 @@ spring:
   config:
     activate:
       on-profile: "local"
+  # 로컬 H2 파일 DB로 데이터소스 설정 (서버 재기동 시에도 가입/결제 데이터 보존)
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:file:./db/hirepicker;DB_CLOSE_DELAY=-1;MODE=MySQL
+    username: sa
+    password:
+  # H2 DB 웹 콘솔 활성화
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
   jpa:
     hibernate:
-      ddl-auto: none # local 환경에서는 엔티티 변경 시 DB 테이블 수동 관리 (기존 설정 유지)
+      ddl-auto: update # 로컬 구동 시 엔티티 변경사항 자동 생성
     properties:
       hibernate:
+        dialect: org.hibernate.dialect.H2Dialect # H2 Dialect 사용
         format_sql: true
         show_sql: true
 

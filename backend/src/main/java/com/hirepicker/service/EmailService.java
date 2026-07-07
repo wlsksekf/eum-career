@@ -25,6 +25,9 @@ public class EmailService {
     @Value("${sendgrid.api-key}")
     private String sendGridApiKey;
 
+    @Value("${spring.profiles.active:local}")
+    private String activeProfile;
+
     // ★ 중요: 이메일 발신자 주소. SendGrid에 'Sender'로 등록/인증된 이메일이어야 함.
     private static final String FROM_EMAIL = "jinaniyagi@gmail.com";
     private static final String VERIFICATION_CODE_PREFIX = "verify:";
@@ -36,7 +39,7 @@ public class EmailService {
     private final StringRedisTemplate redisTemplate;
 
     /**
-     * 인증 코드를 생성하여 Redis에 저장하고, SendGrid를 통해 이메일 발송
+     * 인증 코드를 생성하여 Redis에 저장하고, SendGrid를 통해 이메일 발송 (로컬 환경 시 로그만 노출)
      *
      * @param toEmail 인증 코드를 받을 이메일 주소
      */
@@ -49,7 +52,14 @@ public class EmailService {
         redisTemplate.opsForValue().set(redisKey, code, CODE_EXPIRATION_MINUTES, TimeUnit.MINUTES);
         log.info("인증 코드 Redis 저장 완료. Key: {}, Expiry: {} 분", redisKey, CODE_EXPIRATION_MINUTES);
 
-        // 3. SendGrid를 사용한 이메일 발송
+        // 3. 로컬 테스트 및 API Key가 무효한 경우 이메일 발송 스킵 후 로그 표시
+        if ("local".equals(activeProfile) || "mock_sendgrid_key".equals(sendGridApiKey)) {
+            log.info("[로컬 모드] 이메일 인증 코드가 발송된 것으로 모킹 처리되었습니다.");
+            log.info("[로컬 모드] 회원가입 이메일: {}, 생성된 인증 코드: [ {} ]", toEmail, code);
+            return;
+        }
+
+        // 4. SendGrid를 사용한 이메일 발송
         Email from = new Email(FROM_EMAIL);
         String subject = "[HirePicker] 회원가입 인증 코드입니다.";
         Email to = new Email(toEmail);
@@ -71,8 +81,6 @@ public class EmailService {
             }
         } catch (IOException ex) {
             log.error("SendGrid API 호출 중 IOException 발생", ex);
-            // Redis에 저장된 코드 롤백 (선택적)
-            // redisTemplate.delete(redisKey);
             throw new RuntimeException("이메일 발송 중 시스템 오류가 발생했습니다.");
         }
     }

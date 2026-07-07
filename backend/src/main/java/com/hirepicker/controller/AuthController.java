@@ -212,11 +212,14 @@ public class AuthController {
         
         // Rate Limiting: IP 기반 로그인 시도 제한 (5분에 10회)
         String clientIp = getClientIp(request);
+        // [로컬 테스트 편의를 위해 시도 횟수 제한 로직을 주석 처리함]
+        /*
         if (!rateLimitConfig.tryConsume(clientIp)) {
             log.warn("[API] 로그인 시도 제한 초과. IP: {}", clientIp);
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body(Map.of("message", "로그인 시도 횟수가 초과되었습니다. 5분 후 다시 시도해주세요."));
         }
+        */
         
         log.info("[API] /api/auth/login 요청 수신. IP: {}", clientIp);
         try {

@@ -9,6 +9,12 @@ import ResumePdfDocument from '@/components/ResumePdfDocument'; // PDF 컴포넌
 export default function ResumeForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
+  const [isMounted, setIsMounted] = useState(false); // [로컬 테스트] SSR 오류 해결을 위한 마운트 제어 추가
+  
+  useEffect(() => {
+    setIsMounted(true); // [로컬 테스트] 마운트 상태 설정
+  }, []);
+
   const [resumeData, setResumeData] = useState({
     name: '',
     gender: '',
@@ -158,23 +164,32 @@ export default function ResumeForm() {
           내용 임시 저장
         </Button>
         
-        <PDFDownloadLink
-          document={<ResumePdfDocument resumeData={resumeData} />}
-          fileName={`${resumeData.name || '사용자'}_입사지원서.pdf`}
-          style={{ textDecoration: 'none' }}
-        >
-          {({ loading }) => (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              size="large"
-              disabled={loading}
-              startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
-            >
-              {loading ? 'PDF 생성 중...' : 'PDF로 다운로드'}
-            </Button>
-          )}
-        </PDFDownloadLink>
+        {isMounted && (
+          <PDFDownloadLink
+            document={<ResumePdfDocument resumeData={resumeData} />}
+            fileName={`${resumeData.name || '사용자'}_입사지원서.pdf`}
+            style={{ textDecoration: 'none' }}
+          >
+            {({ blob, url, loading, error }) => {
+              // [로컬 디버그 로그 추가]
+              if (loading) console.log('[PDF-New] 신규 PDF 문서 렌더링 진행 중...');
+              if (error) console.error('[PDF-New] 신규 PDF 문서 생성 중 에러 감지됨:', error);
+              if (blob) console.log('[PDF-New] 신규 PDF 문서 생성 완료. blob 크기:', blob.size, '바이트');
+              
+              return (
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  size="large"
+                  disabled={loading}
+                  startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+                >
+                  {loading ? 'PDF 생성 중...' : 'PDF로 다운로드'}
+                </Button>
+              );
+            }}
+          </PDFDownloadLink>
+        )}
       </Box>
     </Paper>
   );

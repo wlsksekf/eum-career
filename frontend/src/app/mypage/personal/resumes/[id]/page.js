@@ -127,6 +127,11 @@ export default function ResumeDetailPage() {
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isMounted, setIsMounted] = useState(false); // [로컬 테스트] SSR 수화(Hydration) 에러 방지를 위한 마운트 상태
+
+  useEffect(() => {
+    setIsMounted(true); // [로컬 테스트] 마운트 완료 세팅
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -260,13 +265,25 @@ export default function ResumeDetailPage() {
           <Button component={NextLink} href={`/mypage/personal/resumes/${id}/edit`} variant="contained">
             편집
           </Button>
-          <PDFDownloadLink document={<ResumePdfDocument formData={pdfData} />} fileName={`${formData.name || 'resume'}_${title || id}.pdf`}>
-            {({ loading: generating }) => (
-              <Button variant="outlined" disabled={generating || imageLoading}>
-                {generating ? 'PDF 생성 중...' : imageLoading ? '이미지 로딩 중...' : 'PDF 다운로드'}
-              </Button>
-            )}
-          </PDFDownloadLink>
+          {isMounted && (
+            <PDFDownloadLink 
+              document={<ResumePdfDocument formData={pdfData} />} 
+              fileName={`${formData.name || 'resume'}_${title || id}.pdf`}
+            >
+              {({ blob, url, loading: generating, error }) => {
+                // [로컬 디버그 로그 추가]
+                if (generating) console.log('[PDF-Detail] PDF 문서 렌더링 진행 중...');
+                if (error) console.error('[PDF-Detail] PDF 문서 생성 중 에러 감지됨:', error);
+                if (blob) console.log('[PDF-Detail] PDF 문서 생성 완료. blob 크기:', blob.size, '바이트');
+                
+                return (
+                  <Button variant="outlined" disabled={generating || imageLoading}>
+                    {generating ? 'PDF 생성 중...' : imageLoading ? '이미지 로딩 중...' : 'PDF 다운로드'}
+                  </Button>
+                );
+              }}
+            </PDFDownloadLink>
+          )}
         </Box>
       </Box>
 

@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ResumeForm from "@/components/ResumeForm";
+import { pdf } from "@react-pdf/renderer"; // [로컬 테스트] 동적 PDF 변환용
+import ResumePdfDocument from "@/components/ResumePdfDocument"; // [로컬 테스트] PDF 템플릿
 import {
   api,
   getResumeTemplate,
@@ -789,6 +791,33 @@ export default function WriteResumePage(props = {}) {
     } finally { setIsLoading(false); }
   };
 
+  // [로컬 테스트] 작성중인 이력서 데이터를 기반으로 동적 PDF 빌딩 및 파일 다운로드 실행
+  const onDownload = async () => {
+    try {
+      console.log('[PDF-Write] 동적 PDF 빌딩 시작...');
+      const pdfData = {
+        ...formData,
+        imageUrl: previewImage // [로컬 테스트] previewImage를 PDF 렌더용 데이터에 병합
+      };
+      const doc = <ResumePdfDocument formData={pdfData} />;
+      const asPdf = pdf(doc);
+      const blob = await asPdf.toBlob();
+      console.log('[PDF-Write] PDF 빌딩 완료. 크기:', blob.size, '바이트');
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${formData.name || '사용자'}_이력서.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('[PDF-Write] 동적 PDF 다운로드 실패:', error);
+      alert('PDF 생성 도중 오류가 발생했습니다.');
+    }
+  };
+
   if (initializing) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '70vh' }}>
@@ -809,7 +838,7 @@ export default function WriteResumePage(props = {}) {
       isAiCreditInsufficient={creditBalance != null && creditBalance < AI_CREDIT_COST}
       onAiGenerate={onAiGenerate}
       onOpenAiDialog={onOpenAiDialog}
-      onDownload={() => {}}
+      onDownload={onDownload} // [로컬 테스트] 완성된 동적 PDF 다운로드 기능 주입
       onSave={onSave}
       onRefine={onRefine}
       onStartFresh={onStartFresh}

@@ -85,6 +85,9 @@ hs_err_pid*
 /backend/.apt_generated_tests/
 /backend/.apt_core_tests/
 
+# Local H2 Database Files
+/backend/db/
+
 # ==========================================
 # 3. 프론트엔드 규칙 (Frontend - Node/Next.js)
 # ==========================================

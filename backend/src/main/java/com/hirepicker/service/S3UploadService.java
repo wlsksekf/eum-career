@@ -14,7 +14,10 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
+import org.springframework.beans.factory.annotation.Value;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Base64;
 import java.util.UUID;
 
@@ -23,20 +26,39 @@ import java.util.UUID;
 @Slf4j
 public class S3UploadService {
 
+    @Value("${spring.profiles.active:local}")
+    private String activeProfile;
+
     private final S3Client s3Client; // S3 클라이언트 (v2)
     private final S3Config s3Config; // 버킷명 등의 설정 접근용
 
     /**
-     * 파일을 S3 버킷에 업로드합니다.
+     * 파일을 S3 또는 로컬 디렉터리에 업로드합니다.
      * @param multipartFile 업로드할 파일
-     * @param dirName S3 버킷 내 디렉터리 이름 (예: "images", "resumes")
-     * @return 업로드된 파일의 퍼블릭 URL
+     * @param dirName 업로드 경로 내 디렉터리 이름 (예: "images", "resumes")
+     * @return 업로드된 파일의 URL
      * @throws IOException 파일 처리 중 발생 예외
      */
     public String uploadFile(MultipartFile multipartFile, String dirName) throws IOException {
-        log.info("S3 파일 업로드 시작. 파일명: {}, 디렉토리: {}", multipartFile.getOriginalFilename(), dirName);
+        log.info("파일 업로드 시작. 파일명: {}, 디렉토리: {}", multipartFile.getOriginalFilename(), dirName);
         String fileName = dirName + "/" + UUID.randomUUID() + "_" + multipartFile.getOriginalFilename();
-        log.info("S3에 저장될 최종 파일명: {}", fileName);
+        log.info("저장될 최종 파일명: {}", fileName);
+
+        // 로컬 개발 모드 우회 처리
+        if ("local".equals(activeProfile) || "mock_bucket_name".equals(s3Config.getBucketName())) {
+            log.info("[로컬 모드] S3 업로드를 우회하여 로컬 파일 시스템에 저장합니다.");
+            String uploadDir = System.getProperty("user.dir") + "/uploads/" + dirName;
+            File dir = new File(uploadDir);
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            String simpleFileName = UUID.randomUUID() + "_" + multipartFile.getOriginalFilename();
+            File dest = new File(dir, simpleFileName);
+            multipartFile.transferTo(dest);
+            String url = "http://localhost:8080/uploads/" + dirName + "/" + simpleFileName;
+            log.info("[로컬 모드] 파일 저장 완료. 접근 URL: {}", url);
+            return url;
+        }
 
         try {
             PutObjectRequest putReq = PutObjectRequest.builder()
@@ -70,13 +92,41 @@ public class S3UploadService {
     }
 
     /**
-     * S3에서 이미지를 다운로드하여 base64로 변환합니다.
-     * @param imageUrl S3 이미지 URL (전체 URL 또는 키)
+     * S3 또는 로컬에서 이미지를 다운로드하여 base64로 변환합니다.
+     * @param imageUrl 이미지 URL (전체 URL 또는 키)
      * @return base64 인코딩된 이미지 문자열 (data:image/... 형식)
      * @throws IOException 파일 다운로드 중 발생 예외
      */
     public String getImageAsBase64(String imageUrl) throws IOException {
         try {
+            // 로컬 개발 모드 우회 처리
+            if ("local".equals(activeProfile) || imageUrl.startsWith("http://localhost:8080/uploads/")) {
+                log.info("[로컬 모드] 로컬 파일 시스템에서 이미지를 읽습니다. URL: {}", imageUrl);
+                String key = imageUrl.substring(imageUrl.indexOf("/uploads/") + "/uploads/".length());
+                String filePath = System.getProperty("user.dir") + "/uploads/" + key;
+                File file = new File(filePath);
+                if (!file.exists()) {
+                    throw new IOException("로컬 파일을 찾을 수 없습니다: " + filePath);
+                }
+                byte[] imageBytes = Files.readAllBytes(file.toPath());
+                String base64 = Base64.getEncoder().encodeToString(imageBytes);
+
+                String contentType = "image/png"; // 기본값
+                if (key.toLowerCase().endsWith(".jpg") || key.toLowerCase().endsWith(".jpeg")) {
+                    contentType = "image/jpeg";
+                } else if (key.toLowerCase().endsWith(".png")) {
+                    contentType = "image/png";
+                } else if (key.toLowerCase().endsWith(".gif")) {
+                    contentType = "image/gif";
+                } else if (key.toLowerCase().endsWith(".webp")) {
+                    contentType = "image/webp";
+                }
+
+                String dataUrl = "data:" + contentType + ";base64," + base64;
+                log.info("[로컬 모드] 로컬 이미지 base64 변환 성공. 크기: {} bytes", imageBytes.length);
+                return dataUrl;
+            }
+
             // URL에서 키 추출
             String key = extractKeyFromUrl(imageUrl);
             log.info("S3 이미지 다운로드 시작. 키: {}", key);
@@ -107,8 +157,8 @@ public class S3UploadService {
                 return dataUrl;
             }
         } catch (Exception e) {
-            log.error("S3 이미지 다운로드 중 오류 발생: {}", e.getMessage(), e);
-            throw new IOException("S3 이미지 다운로드에 실패했습니다.", e);
+            log.error("이미지 다운로드 중 오류 발생: {}", e.getMessage(), e);
+            throw new IOException("이미지 다운로드에 실패했습니다.", e);
         }
     }
 

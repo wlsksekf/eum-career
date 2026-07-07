@@ -3,8 +3,23 @@
 
 import React from "react";
 import { Page, Text, View, Document, StyleSheet, Font, Image } from "@react-pdf/renderer";
-// PDF에서도 사이트 스타일을 유지하기 위해 프리텐다드 폰트 등록 (public/fonts 경로 사용)
-Font.register({ family: "Pretendard", src: "/fonts/Pretendard-Medium.ttf" });
+// [로컬 테스트] 클라이언트 마운트 이후 1회만 로컬 폰트를 절대 경로로 동적 등록하는 헬퍼 (SSR 충돌 방지)
+const registerPretendardFont = () => {
+  if (typeof window !== "undefined" && !window.__pretendard_registered) {
+    try {
+      const fontUrl = window.location.origin + "/fonts/Pretendard-Medium.ttf";
+      console.log('[PDF] 로컬 Pretendard 폰트 동적 등록 시도 URL:', fontUrl);
+      Font.register({ 
+        family: "Pretendard", 
+        src: fontUrl
+      });
+      window.__pretendard_registered = true;
+      console.log('[PDF] 로컬 Pretendard 폰트 동적 등록 완료!');
+    } catch (e) {
+      console.log('[PDF] 폰트 등록 무시 (이미 등록되었거나 로드 실패):', e.message);
+    }
+  }
+};
 
 // 표 레이아웃과 텍스트 정렬을 모든 섹션에서 재사용
 const styles = StyleSheet.create({
@@ -34,6 +49,7 @@ const styles = StyleSheet.create({
 });
 
 const ResumePdfDocument = ({ formData }) => {
+  registerPretendardFont(); // [로컬 테스트] 클라이언트 단에서만 폰트 동적 등록 실행
   // 이미지 URL 처리: base64인지 URL인지 확인
   const getImageSrc = () => {
     if (!formData.imageUrl) {
@@ -49,18 +65,32 @@ const ResumePdfDocument = ({ formData }) => {
       console.log('[PDF] base64 이미지 사용');
       return url;
     }
+
+    // 브라우저 임시 Blob 객체 URL인 경우 (blob: 으로 시작)
+    if (url.startsWith('blob:')) {
+      console.log('[PDF] 브라우저 임시 Blob 이미지 사용:', url);
+      return url;
+    }
     
     // URL인 경우 - PDF 라이브러리에서 직접 사용 시도
-    // 하지만 CORS 문제가 있을 수 있으므로 base64를 우선 사용
     if (url.startsWith('http://') || url.startsWith('https://')) {
+      if (url.includes('localhost:8080/uploads/')) {
+        console.log('[PDF] 로컬 업로드 이미지 사용:', url);
+        return url;
+      }
       console.log('[PDF] URL 이미지 사용 (CORS 문제 가능)');
       return url;
     }
     
-    // 상대 경로인 경우 S3 기본 URL 추가
+    // 상대 경로인 경우
     if (url.startsWith('/')) {
+      if (url.startsWith('/uploads/')) {
+        const fullUrl = `http://localhost:8080${url}`;
+        console.log('[PDF] 로컬 상대 경로를 로컬 절대 URL로 변환:', fullUrl);
+        return fullUrl;
+      }
       const fullUrl = `https://hirepicker-storage.s3.ap-northeast-2.amazonaws.com${url}`;
-      console.log('[PDF] 상대 경로를 절대 URL로 변환:', fullUrl);
+      console.log('[PDF] 상대 경로를 S3 URL로 변환:', fullUrl);
       return fullUrl;
     }
     

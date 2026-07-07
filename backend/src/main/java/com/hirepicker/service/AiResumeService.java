@@ -23,9 +23,9 @@ public class AiResumeService {
     private final Client client;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    // Gemini SDK 클라이언트를 초기화한다. 환경변수(GOOGLE_API_KEY 등)는 SDK 내부에서 읽는다.
-    public AiResumeService() {
-        this.client = new Client();
+    // 스프링 빈으로 등록된 Client(API key가 주입 완료된 인스턴스)를 주입받아 사용합니다.
+    public AiResumeService(Client client) {
+        this.client = client;
     }
 
     /**
